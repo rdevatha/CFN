@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates an ELB. 
+Parameters:
+  PrivateSubnetAId:
+    Description: ID of the first private subnet you want to provision the servers
+      into (e.g., subnet-abcd)
+    Type: String
+    Default: subnet-id
+  PrivateSubnetBId:
+    Description: ID of the second private subnet you want to provision the servers
+      into (e.g., subnet-a0246dcd)
+    Type: String
+    Default: subnet-id ( for diff availability zones )
+  InstanceSecurityGroup:
+    Description: ID of the security group to be used
+    Type: String
+    Default: give your security group
+  GroupOwner:
+    Description: Name of Group Owner e.g. ravi_Group
+    Type: String
+    Default: ravi_group
+  Environment:
+    Description: Name of the Environment e.g. Dev
+    Type: String
+    Default: web
+  ProductIdentifier:
+    Description: Tag for the name of the product
+    Type: String
+    Default: name the product this is getting created forb
+  LoadBalancerName:
+    Description: The name for the load balancer
+    Type: String
+    Default: ravi-web-$env
+Resources:
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      LoadBalancerName: !Ref 'LoadBalancerName'
+      Listeners:
+      - LoadBalancerPort: '80'
+        InstancePort: '443'
+        Protocol: TCP
+      - LoadBalancerPort: '443'
+        InstancePort: '443'
+        Protocol: TCP
+      HealthCheck:
+        Target: TCP:443
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '30'
+        Timeout: '5'
+      CrossZone: 'true'
+      SecurityGroups:
+      - !Ref 'InstanceSecurityGroup'
+      Scheme: internal
+      Subnets:
+      - !Ref 'PrivateSubnetAId'
+      - !Ref 'PrivateSubnetBId'
+      Tags:
+      - Key: GroupOwner
+        Value: !Ref 'GroupOwner'
+      - Key: Environment
+        Value: !Ref 'Environment'
+      - Key: ProductIdentifier
+        Value: !Ref 'ProductIdentifier'
+  ELBParamStore:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '${ProductIdentifier}-${Environment}-DNSName'
+      Type: String
+      Value: !Sub '${LoadBalancer.DNSName}'
+      Description: DNS name of the ELB
+Outputs:
+  ELBInternalDNSName:
+    Description: DNS name of the ELB
+    Value: !GetAtt 'LoadBalancer.DNSName'
+

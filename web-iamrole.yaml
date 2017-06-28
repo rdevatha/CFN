@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Product Suite Role for deployed EC2 instances.
+  Pipeline.
+Parameters:
+  PName:
+    Type: String
+    Description: Name of the ProductSuite and Component.
+  Environment:
+    Description: Name of the Environment e.g. dev
+    Type: String
+Resources:
+  ProductSuiteRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${PName}-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: !Sub '${PName}-${Environment}-Policy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Action:
+            - s3:*
+            Resource: '*'
+            Effect: Allow
+          - Effect: Allow
+            Action:
+            - kms:DescribeKey
+            - kms:GenerateDataKey*
+            - kms:Encrypt
+            - kms:ReEncrypt*
+            - kms:Decrypt
+            - ssm:GetParameters
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - kms:DescribeKey
+            - kms:GenerateDataKey*
+            - kms:Encrypt
+            - kms:ReEncrypt*
+            - kms:Decrypt
+            - ssm:GetParameters
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogStreams
+            Resource:
+            - arn:aws:logs:*:*:*
+          - Effect: Allow
+            Action:
+            - autoscaling:SetInstanceHealth
+            - ec2:AttachNetworkInterface
+            - ec2:DescribeTags
+            Resource:
+            - '*'
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            - cloudwatch:GetMetricStatistics
+            - cloudwatch:ListMetrics
+            Resource:
+            - '*'
+  ProductSuiteInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref 'ProductSuiteRole'
+Outputs:
+  ProductSuiteInstanceProfileArn:
+    Value: !GetAtt 'ProductSuiteInstanceProfile.Arn'
+    Description: The Instance Profile Arn that will be used for deploying EC2 instances.

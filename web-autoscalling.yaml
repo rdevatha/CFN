@@ -1,0 +1,256 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an AutoScaling group. Lets do it!.
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: String
+    Default: keypair name
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: c4.4xlarge
+    AllowedValues:
+    - t1.micro
+    - t2.nano
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - m1.small
+    - m1.medium
+    - m1.large
+    - m1.xlarge
+    - m2.xlarge
+    - m2.2xlarge
+    - m2.4xlarge
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - m4.large
+    - m4.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - c1.medium
+    - c1.xlarge
+    - c3.large
+    - c3.xlarge
+    - c3.2xlarge
+    - c3.4xlarge
+    - c3.8xlarge
+    - c4.large
+    - c4.xlarge
+    - c4.2xlarge
+    - c4.4xlarge
+    - c4.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  PrivateSubnetAId:
+    Description: ID of the first private subnet you want to provision the servers
+      into (e.g., subnet-a0246dcd)
+    Type: String
+    Default: subnet-id
+  PrivateSubnetBId:
+    Description: ID of the second private subnet you want to provision the servers
+      into (e.g., subnet-a0246dcd)
+    Type: String
+    Default: subnet-b id
+  LoadBalancerName:
+    Description: The name for the load balancer
+    Type: String
+    Default: ravi-web-ELB, give one if you have one
+  InstanceSecurityGroup:
+    Description: ID of the security group to be used
+    Type: String
+    Default: sg-id, as created from sg cfn
+  WebELBSecurityGroup:
+    Description: ID of the security group to be used
+    Type: String
+    Default: sg-elb-id as created frm sg cfn
+  AMIId:
+    Description: ID of the AMI to be used
+    Type: String
+    Default: ami-id
+  GroupOwner:
+    Description: Name of Group Owner e.g. ravi_group
+    Type: String
+    Default: name_group
+  ServerName:
+    Description: Name of the Server 
+    Type: String
+    Default: ravi-web
+  Role:
+    Description: Name of the Role
+    Type: String
+    Default: web
+  Environment:
+    Description: Name of the Environment e.g. dev
+    Type: String
+    Default: dev
+  LaunchUserEmail:
+    Description: Tag for email of person or resource that launched this instancee
+    Type: String
+  OperatingSystem:
+    Description: Tag for Operating System Type
+    Type: String
+    Default: Linux
+  ProductIdentifier:
+    Description: Tag for the name of the product
+    Type: String
+    Default: which product is this ? lets name it
+  IamInstanceProfile:
+    Description: Iam Role that will be used for the EC2 instances
+    Type: String
+    Default: give it if you have, else create one and give it
+  DesiredCapacity:
+    Description: Desired capacity for the AutoScaling Group
+    Type: String
+    Default: '1'
+  Identifier:
+    Description: Env classification 
+    Type: String
+    Default: dev
+  PlacementTenancy:
+    Description: The tenancy of the instance. An instance with a tenancy of dedicated
+      runs on single-tenant hardware and can only be launched into a VPC.
+    Type: String
+    AllowedValues:
+    - default
+    - dedicated
+    Default: default
+
+Resources:
+  WebELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      LoadBalancerName: !Ref 'LoadBalancerName'
+	  CrossZone: true
+      Scheme: internal
+      HealthCheck:
+        HealthyThreshold: 3
+        UnhealthyThreshold: 9
+        Interval: 10
+        Target: TCP:443
+        Timeout: 5
+      Subnets:
+      - !Ref PrivateSubnetAId
+      - !Ref PrivateSubnetBId
+      SecurityGroups:
+      - !Ref WebELBSecurityGroup
+      Listeners:
+      - LoadBalancerPort: 443
+        InstancePort: 443
+        Protocol: TCP
+	  - LoadBalancerPort: 80
+        InstancePort: 443
+        Protocol: TCP
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - !Ref 'PrivateSubnetAId'
+      - !Ref 'PrivateSubnetBId'
+      LaunchConfigurationName: !Ref 'LaunchConfig'
+      DesiredCapacity: !Ref 'DesiredCapacity'
+	  LoadBalancerNames:
+	  - !Ref WebELB
+	  MinSize: '1'
+      MaxSize: '1'
+      Tags:
+      - Key: Name
+        Value: !Ref 'ServerName'
+        PropagateAtLaunch: 'true'
+      - Key: GroupOwner
+        Value: !Ref 'GroupOwner'
+        PropagateAtLaunch: 'true'
+      - Key: Identifier
+        Value: !Ref 'Identifier'
+        PropagateAtLaunch: 'true'
+      - Key: Environment
+        Value: !Ref 'Environment'
+        PropagateAtLaunch: 'true'
+      - Key: LaunchUserEmail
+        Value: !Ref 'LaunchUserEmail'
+        PropagateAtLaunch: 'true'
+      - Key: Role
+        Value: !Ref 'Role'
+        PropagateAtLaunch: 'true'
+      - Key: OperatingSystem
+        Value: !Ref 'OperatingSystem'
+        PropagateAtLaunch: 'true'
+      - Key: Registered
+        Value: !Ref 'Registered'
+        PropagateAtLaunch: 'true'
+      - Key: ProductIdentifier
+        Value: !Ref 'ProductIdentifier'
+        PropagateAtLaunch: 'true'
+  LaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      UserData:
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+          set -x
+          curl -k https://your puppet master:8140/packages/current/install.bash | sudo bash 
+          
+      SecurityGroups:
+      - !Ref 'InstanceSecurityGroup'
+      InstanceType: !Ref 'InstanceType'
+      ImageId: !Ref 'AMIId'
+      KeyName: !Ref 'KeyName'
+      IamInstanceProfile: !Ref 'IamInstanceProfile'
+      PlacementTenancy: !Ref 'PlacementTenancy'
+  ServerScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref 'AutoScalingGroup'
+      Cooldown: '60'
+      ScalingAdjustment: '1'
+  ServerScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref 'AutoScalingGroup'
+      Cooldown: '60'
+      ScalingAdjustment: '-1'
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scale-up if CPU > 90% for 10 minutes
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '300'
+      EvaluationPeriods: '2'
+      Threshold: '90'
+      AlarmActions:
+      - !Ref 'ServerScaleUpPolicy'
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref 'AutoScalingGroup'
+      ComparisonOperator: GreaterThanThreshold
+  CPUAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scale-down if CPU < 70% for 10 minutes
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '300'
+      EvaluationPeriods: '2'
+      Threshold: '70'
+      AlarmActions:
+      - !Ref 'ServerScaleDownPolicy'
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref 'AutoScalingGroup'
+      ComparisonOperator: LessThanThreshold
+Outputs:
+  AutoScalingGroupId:
+    Description: Id of AutoScaling Group
+    Value: !Ref 'AutoScalingGroup'
+  LaunchConfigurationId:
+    Description: Launch configuration Id
+    Value: !Ref 'LaunchConfig'

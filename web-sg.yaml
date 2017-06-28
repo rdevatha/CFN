@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Builds Security Groups for ravi-web. 
+Parameters:
+  VpcId:
+    Description: The ID of the VPC that you are adding the Security Group to.
+    Type: String
+  Environment:
+    Description: ''
+    Type: String
+Resources:
+  LoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable ports for ELB so users can access to application.
+      VpcId: !Ref 'VpcId'
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '8080'
+        ToPort: '8080'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: !Sub 'ravi-${Environment}-web-ELB'
+  InstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable ports for EC2 Instances so users can access to application.
+      VpcId: !Ref 'VpcId'
+      SecurityGroupIngress:
+      - IpProtocol: -1
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 10.104.87.0/24
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 10.104.144.0/22
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        SourceSecurityGroupId: !Ref 'LoadBalancerSG'
+      - IpProtocol: tcp
+        FromPort: '8080'
+        ToPort: '8080'
+        SourceSecurityGroupId: !Ref 'LoadBalancerSG'
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        SourceSecurityGroupId: !Ref 'LoadBalancerSG'
+      Tags:
+      - Key: Name
+        Value: !Sub 'ravi-${Environment}-web-Instance'
+Outputs:
+  LoadBalancerSGId:
+    Value: !GetAtt 'LoadBalancerSG.GroupId'
+    Description: ravi-web LoadBalancer Security Group ID
+  InstanceSGId:
+    Value: !GetAtt 'InstanceSG.GroupId'
+    Description: ravi-web Instance Security Group ID

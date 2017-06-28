@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Launches new Database instance, actually any instance you want. I just put in Database instance to look cool :). Dont you think DB is cool?, if you want to launch a web instance, you could check up my git repository ( CFN repo ). AHHHH, that was just me marketting myself!!!
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: String
+    Default: give your key pair name
+  ServerName:
+    Description: Name of the Server e.g. ravi-web
+    Type: String
+    Default: give the name you want your instance to have, its latter called in tags for Name
+  dbdatasize:
+    Description: size of data mount point
+    Type: String
+    Default: 1000
+  dblogsize:
+    Description: size of db log mount point
+    Type: String
+    Default: 500
+  Role:
+    Description: Name of the Role, you see these are for tags!!! Making it more Cool!
+    Type: String
+    Default: db
+  LaunchUserEmail:
+    Description: This stays in tag too!! Why not take credit for the work you did ? Let the world know it my boy!!!! 
+    Type: String
+  AmiId:
+    Description: Id of an EC2 AMI to launch
+    Type: String
+    Default: give your ami id
+  InstanceSecurityGroup:
+    Description: ID of the security group to be used
+    Type: String
+    Default: you would have this ready, if not as i said check out my sg cfn. My bad, I wont market it again :P
+  SubnetId:
+    Description: Subnet to launch db instance (subnet-0a74cd42 refers us-east-1b and subnet-dd935ff1 refers us-east-1a)
+    Type: String
+    AllowedValues:
+      - az a subnet?
+      - az b subnet ? give these values
+    Default: subnet-a may be ? you got to decide!!!! Now is the time!!!
+  PlacementTenancy:
+    Description: >-
+      The tenancy of the instance. An instance with a tenancy of dedicated runs
+      on single-tenant hardware and can only be launched into a VPC.
+    Type: String
+    AllowedValues:
+      - default
+      - dedicated
+    Default: default (Aye Aye Captain!!! Default shall be taken if not for some compliances)
+  VpcId:
+    Description: Id of VPC to launch into
+    Type: String
+    Default: vpc-id lets give it and get done!
+  SshAllow:
+    Description: CIDR block to allow SSH from
+    Default: 0.0.0.0 ( use yours ) 
+    Type: String
+  ArtifactBucket:
+    Description: Bucket for pipeline artifacts
+    Default: where do you store infrastructure artifacts, if none this is not so cool to have param!
+    Type: String
+  LogBucket:
+    Description: Bucket for pipeline artifacts
+    Default: give another one
+    Type: String
+  ArtifactKey:
+    Description: Key for artifact
+    Type: String
+  KmsId:
+    Description: KMS to use
+    Default: >-
+      say no more! lets give the KMS. We need encryption and can be used many ways.
+    Type: String
+  DBInstanceProfile:
+    Description: Instance Profile to use
+    Default: give the instance profile you have created before. If not create one.
+    Type: String
+  Environment:
+    Description: Name of the Environment e.g. DevBuilder
+    Type: String
+    Default: dev
+Resources:
+  DBEc2Instance:
+    Type: 'AWS::EC2::Instance'
+
+    Properties:
+      ImageId: !Ref AmiId
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: false
+        DeviceIndex: 0
+        SubnetId: !Ref 'SubnetId'
+        GroupSet:
+        - !Ref InstanceSecurityGroup
+      InstanceType: m3.2xlarge
+      IamInstanceProfile: !Ref DBInstanceProfile
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: !Ref ServerName
+        - Key: LaunchUserEmail
+          Value: !Ref LaunchUserEmail
+        - Key: Role
+          Value: !Ref Role
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 50
+        - DeviceName: /dev/xvdf
+          Ebs:
+            VolumeSize: 50
+        - DeviceName: /dev/sdg
+          Ebs:
+            VolumeSize: !Ref dbdatasize
+            Iops: 5000
+            SnapshotId: give your snapshot id
+            VolumeType: io1
+        - DeviceName: /dev/sdh
+          Ebs:
+            VolumeSize: !Ref dblogsize
+            Iops: 5000
+            SnapshotId: snap-id
+            VolumeType: io1
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+          set -x
+
+          # Resize DB DATA Volume
+          xfs_growfs /dev/xvdg
+
+          # Resize DB log Volume
+          xfs_growfs /dev/xvdh
+
+         
+Outputs:
+  DBInstanceIpAddress:
+    Description: IP of test EC2 Instance
+    Value: !Sub '${DBEc2Instance.PrivateIp}'
